@@ -9,7 +9,7 @@ class Volume(SqlAlchemyBase, SerializerMixin):
     id = Column(Integer, primary_key=True, autoincrement=True)
     volume_number = Column(Integer, nullable=False)
     ranobe_id = Column(Integer, ForeignKey('ranobe.id'))
-    title = Column(String, nullable=True)  # Делаем поле необязательным
+    title = Column(String, nullable=True)
 
     ranobe = relationship('Ranobe', back_populates='volumes')
     chapters = relationship('Chapter', back_populates='volume', cascade='all, delete-orphan')
