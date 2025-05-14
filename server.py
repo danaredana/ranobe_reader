@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, request, abort, flash
+from flask import Flask, render_template, redirect, request, abort, flash, jsonify
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from datetime import datetime
 
@@ -370,6 +370,116 @@ def delete_comment(id):
         db_sess.delete(comment)
         db_sess.commit()
         return redirect(f'/chapter/{chapter_id}')
+    finally:
+        db_sess.close()
+
+
+@app.route('/api/ranobe', methods=['GET'])
+def api_get_all_ranobe():
+    """Возвращает JSON со списком всех ранобе"""
+    db_sess = db_session.create_session()
+    try:
+        ranobe_list = db_sess.query(Ranobe).order_by(Ranobe.title).all()
+        return jsonify([{
+            'id': ranobe.id,
+            'title': ranobe.title,
+            'description': ranobe.description,
+            'cover_image': ranobe.cover_image
+        } for ranobe in ranobe_list])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db_sess.close()
+
+
+@app.route('/api/ranobe/<int:ranobe_id>/volumes/<int:volume_number>/chapters', methods=['GET'])
+def api_get_volume_chapters(ranobe_id, volume_number):
+    """Возвращает JSON со списком глав указанного тома"""
+    db_sess = db_session.create_session()
+    try:
+        volume = db_sess.query(Volume).filter(
+            Volume.ranobe_id == ranobe_id,
+            Volume.volume_number == volume_number
+        ).first()
+
+        if not volume:
+            return jsonify({'error': 'Volume not found'}), 404
+
+        chapters = db_sess.query(Chapter).filter(
+            Chapter.volume_id == volume.id
+        ).order_by(Chapter.chapter_number).all()
+
+        return jsonify([{
+            'id': chapter.id,
+            'title': chapter.title,
+            'chapter_number': chapter.chapter_number
+        } for chapter in chapters])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db_sess.close()
+
+
+@app.route('/api/chapters/<int:chapter_id>', methods=['GET'])
+def api_get_chapter_content(chapter_id):
+    """Возвращает JSON с содержимым главы по ID главы"""
+    db_sess = db_session.create_session()
+    try:
+        chapter = db_sess.query(Chapter).get(chapter_id)
+        if not chapter:
+            return jsonify({'error': 'Chapter not found'}), 404
+
+        volume = db_sess.query(Volume).get(chapter.volume_id)
+        if not volume:
+            return jsonify({'error': 'Volume not found'}), 404
+
+        return jsonify({
+            'id': chapter.id,
+            'title': chapter.title,
+            'chapter_number': chapter.chapter_number,
+            'content': chapter.content,
+            'volume_number': volume.volume_number,
+            'ranobe_id': volume.ranobe_id
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db_sess.close()
+
+
+@app.route('/api/ranobe/<int:ranobe_id>/volumes/<int:volume_number>/chapters/<int:chapter_number>', methods=['GET'])
+def api_get_chapter_content2(ranobe_id, volume_number, chapter_number):
+    """Возвращает JSON с содержимым главы по ID ранобе, номеру тома и номеру главы"""
+    db_sess = db_session.create_session()
+    try:
+        # Находим том
+        volume = db_sess.query(Volume).filter(
+            Volume.ranobe_id == ranobe_id,
+            Volume.volume_number == volume_number
+        ).first()
+
+        if not volume:
+            return jsonify({'error': 'Volume not found'}), 404
+
+        # Находим главу по номеру в этом томе
+        chapter = db_sess.query(Chapter).filter(
+            Chapter.volume_id == volume.id,
+            Chapter.chapter_number == chapter_number
+        ).first()
+
+        if not chapter:
+            return jsonify({'error': 'Chapter not found'}), 404
+
+        return jsonify({
+            'id': chapter.id,
+            'title': chapter.title,
+            'chapter_number': chapter.chapter_number,
+            'content': chapter.content,
+            'volume_number': volume.volume_number,
+            'ranobe_id': volume.ranobe_id
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
     finally:
         db_sess.close()
 
